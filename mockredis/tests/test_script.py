@@ -10,6 +10,9 @@ from mockredis.tests.test_constants import (
 )
 from mockredis.script import Script as MockredisScript
 
+import sys
+if sys.version_info >= (3, 0):
+    long = int
 
 def has_lua():
     """
@@ -342,7 +345,7 @@ class TestScript(TestCase):
         self.lua_assert_equal_list_with_pairs(lval_expected, lval)
 
     def test_python_to_lua_long(self):
-        pval = 10L
+        pval = long(10)
         lval = MockredisScript._python_to_lua(pval)
         lval_expected = self.lua.eval('10')
         self.assertEqual("number", self.lua_globals.type(lval))

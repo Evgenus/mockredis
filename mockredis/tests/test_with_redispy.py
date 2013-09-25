@@ -1,4 +1,4 @@
-from test_configuration import * # flake8: noqa
+from .test_configuration import * # flake8: noqa
 from mockredis import MockRedis
 
 from unittest import TestCase, skipUnless

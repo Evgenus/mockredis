@@ -1,3 +1,4 @@
+from __future__ import division
 from collections import defaultdict
 from datetime import datetime, timedelta
 from hashlib import sha1
@@ -10,6 +11,12 @@ from mockredis.pipeline import MockRedisPipeline
 from mockredis.script import Script
 from mockredis.sortedset import SortedSet
 
+import sys
+if sys.version_info >= (3, 0):
+    long = int
+    xrange = range
+    basestring = str
+    from functools import reduce
 
 class MockRedis(object):
     """
@@ -206,6 +213,9 @@ class MockRedis(object):
         result = None if key not in self.redis else self.redis[key]
         return result
 
+    def mget(self, *keys):
+        return [self.get(key) for key in keys]
+
     def set(self, key, value, ex=None, px=None, nx=False, xx=False, currenttime=datetime.now()):
         """
         Set the ``value`` for the ``key`` in the context of the provided kwargs.
@@ -288,6 +298,18 @@ class MockRedis(object):
     def setnx(self, key, value):
         """Set the value of ``key`` to ``value`` if key doesn't exist"""
         return self.set(key, value, nx=True)
+
+    def msetnx(self, mapping):
+        """
+        Sets the given keys to their respective values. Will not perform 
+        any operation at all even if just a single key already exists.
+        """
+        for key, value in mapping.items():
+            if key in self.redis:
+                return False
+        for key, value in mapping.items():
+            self.redis[key] = str(value)
+        return True
 
     def decr(self, key, amount=1):
         """Emulate decr."""
@@ -451,7 +473,7 @@ class MockRedis(object):
         redis_list = self._get_list(key, 'LPUSH', create=True)
 
         # Creates the list at this key if it doesn't exist, and appends args to its beginning
-        args_reversed = map(str, args)
+        args_reversed = list(map(str, args))
         args_reversed.reverse()
         self.redis[key] = args_reversed + redis_list
 
@@ -645,7 +667,7 @@ class MockRedis(object):
         if len(args) % 2 != 0:
             raise ValueError("ZADD requires an equal number of "
                              "values and scores")
-        for i in xrange(len(args) / 2):
+        for i in xrange(len(args) // 2):
             # interpretation of args order depends on whether Redis
             # or StrictRedis is used
             score = args[2 * i + (0 if self.strict else 1)]
@@ -694,7 +716,7 @@ class MockRedis(object):
                 members.setdefault(member, []).append(score)
 
         intersection = SortedSet()
-        for member, scores in members.iteritems():
+        for member, scores in members.items():
             if len(scores) != len(keys):
                 continue
             intersection[member] = reduce(aggregate_func, scores)
@@ -853,7 +875,7 @@ class MockRedis(object):
 
     def script_load(self, script):
         """Emulate script_load"""
-        sha_digest = sha1(script).hexdigest()
+        sha_digest = sha1(script.encode("utf-8")).hexdigest()
         self.shas[sha_digest] = script
         return sha_digest
 
@@ -905,7 +927,7 @@ class MockRedis(object):
         """
         For python 2.6 support
         """
-        return int((td.microseconds + (td.seconds + td.days * 24 * 3600) * 1e6) / 1e6)
+        return int((td.microseconds + (td.seconds + td.days * 24 * 3600) * 1e6) // 1e6)
 
     def _get_total_milliseconds(self, td):
         return int((td.days * 24 * 60 * 60 + td.seconds) * 1000 + td.microseconds / 1000.0)
@@ -971,9 +993,9 @@ class MockRedis(object):
         Return a suitable function from (score, member)
         """
         if withscores:
-            return lambda (score, member): (member, score_cast_func(score))
+            return lambda data: (data[1], score_cast_func(data[0]))
         else:
-            return lambda (score, member): member
+            return lambda data: data[1]
 
     def _aggregate_func(self, aggregate):
         """

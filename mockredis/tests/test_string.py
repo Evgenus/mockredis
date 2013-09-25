@@ -200,6 +200,11 @@ class TestRedisString(object):
         ok_(not self.redis.setnx('key', 'different_value'))
         eq_('value', self.redis.get('key'))
  
+    def test_msetnx(self):
+        ok_(self.redis.msetnx({"key1": "Hello", "key2": "there"}))
+        ok_(not self.redis.msetnx({"key3": "world", "key2": "there"}))
+        eq_(["Hello", "there", None], self.redis.mget("key1", "key2", "key3"))
+
     def test_delete(self):
         """Test if delete works"""
  
